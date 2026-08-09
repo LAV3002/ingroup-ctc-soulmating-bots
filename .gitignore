@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# RegaBot runtime data (pickle persistence)
+*.pickle
+
+# Logs
+logs/
