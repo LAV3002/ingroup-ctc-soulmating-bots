@@ -36,7 +36,13 @@ def start_hello(open_tags: list[str], my_tables: list[str], has_profile: bool) -
 
 
 def ask_table(open_tags: str) -> str:
-    return f"За каким столом регистрируешься? Сейчас открыты: {open_tags}."
+    return (
+        "За каким столом регистрируешься? Выбери открытый стол кнопкой ниже. "
+        f"Сейчас открыты: {open_tags}."
+    )
+
+
+CHOOSE_TABLE_BTN = "Нажми кнопку с нужным столом:"
 
 
 def table_invalid(tags: str) -> str:
@@ -72,8 +78,7 @@ def registered(p: Participant) -> str:
 
 # --- Симпатии (/sympathy) ---
 NOT_REGISTERED = "Ты нигде не зарегистрирован(а). Сначала /start."
-SYMPATHY_FORMAT = "Напиши в одном сообщении: номер приоритет. Например: 12 1"
-SYMPATHY_PRIORITY_INVALID = "Приоритет — натуральное число (1, 2, 3, ...). Попробуй ещё раз."
+SYMPATHY_FORMAT = "Напиши номер бейджа. Первое сообщение — приоритет 3, второе — 2, третье — 1."
 SYMPATHY_TARGET_UNKNOWN = "Участника с таким номером за этим столом нет. Проверь номер."
 SYMPATHY_SELF = "Нельзя указать симпатию на самого себя. Выбери другого участника."
 SYMPATHY_CLEARED = "Твой список симпатий очищен. Вводи заново."
@@ -82,8 +87,9 @@ SYMPATHY_CANCELLED = "Выбор симпатий отменён. Изменен
 
 def sympathy_ambiguous(tables: list[str]) -> str:
     return (
-        "Ты зарегистрирован(а) в нескольких столах. Укажи стол:\n"
-        + "\n".join(f"/sympathy {t}" for t in tables)
+        "Ты зарегистрирован(а) в нескольких столах: "
+        + ", ".join(tables)
+        + ".\nВыбери стол кнопкой ниже."
     )
 
 
@@ -99,9 +105,9 @@ def sympathy_intro(max_sympathies: int) -> str:
     return (
         "Этап выбора СуперМэтчей начался!\n"
         f"Можно выбрать до {max_sympathies} участников.\n"
-        "Пиши сообщения в формате: номер приоритет (1 — самый интересен).\n"
-        "Пример: 12 1\n\n"
-        "Когда закончишь — нажми /done."
+        "Пиши номера бейджей по одному в сообщении. Первое сообщение — приоритет 3, "
+        "второе — 2, третье — 1.\n\n"
+        "Когда закончишь — нажми /sympathy_done."
     )
 
 
@@ -109,7 +115,7 @@ def sympathy_progress(entries: list[tuple[int, int]], max_sympathies: int) -> st
     lines = [f"Записано: {len(entries)}/{max_sympathies}"]
     for target, priority in entries:
         lines.append(f"- номер {target}, приоритет {priority}")
-    lines.append("\nВведи следующий или нажми /done для сохранения.")
+    lines.append("\nВведи следующий номер или нажми /sympathy_done для сохранения.")
     return "\n".join(lines)
 
 
@@ -130,12 +136,16 @@ ADMIN_NO_REGISTRATIONS = (
 
 SECOND_NOTIFY = (
     "Регистрация завершена! Переходим к выбору СуперМэтчей.\n"
-    "Нажми /sympathy и укажи до трёх понравившихся участников с приоритетом."
+    "Нажми /sympathy и укажи до трёх понравившихся участников "
+    "по одному номеру в сообщении — от самого интересного к менее."
 )
 
 
 def use_show(active: str | None, assigned: str) -> str:
-    return f"Активный стол: {active}.\nНазначенные тебе столы: {assigned}."
+    msg = f"Активный стол: {active}.\nНазначенные тебе столы: {assigned}."
+    if assigned:
+        msg += "\nВыбери стол кнопкой ниже."
+    return msg
 
 
 def use_set(tag: str) -> str:

@@ -4,12 +4,14 @@ import asyncio
 import logging
 
 from telegram import Update
-from telegram.ext import CommandHandler, ContextTypes
+from telegram.error import BadRequest
+from telegram.ext import BaseHandler, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from config import ADMIN_TABLES, MEETING_IDEAS
+from config import ADMIN_TABLES, ADMIN_USER_IDS, MEETING_IDEAS
 from regabot import texts
 from regabot.constants import Stage
 from regabot.filters import admin_filter, private_filter
+from regabot.keyboards import use_table_keyboard
 from regabot.matching import assign_pairs, badges_with_matches, compute_matches
 from regabot.state import TableGame, get_active_table, get_table, set_active_table
 
@@ -41,18 +43,46 @@ async def cmd_use(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     logger.info("/use от %s", _admin(update))
     assigned = ADMIN_TABLES.get(user.id, ()) if user else ()
+    active = get_active_table(context.bot_data, user.id, assigned) if user else None
     if not context.args:
-        active = get_active_table(context.bot_data, user.id, assigned) if user else None
-        await update.message.reply_text(texts.use_show(active, ", ".join(assigned)))
+        await update.message.reply_text(
+            texts.use_show(active, ", ".join(assigned)),
+            reply_markup=use_table_keyboard(assigned, active),
+        )
         return
     tag = context.args[0].strip().lower()
     if tag not in assigned:
         logger.info("/use отклонён: стол %s не назначен", tag)
-        await update.message.reply_text(texts.use_denied(tag, ", ".join(assigned)))
+        await update.message.reply_text(
+            texts.use_denied(tag, ", ".join(assigned)),
+            reply_markup=use_table_keyboard(assigned, active),
+        )
         return
     set_active_table(context.bot_data, user.id, tag)
     logger.info("Активный стол -> %s", tag)
     await update.message.reply_text(texts.use_set(tag))
+
+
+async def on_use_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    cq = update.callback_query
+    await cq.answer()
+    user = update.effective_user
+    if user is None or user.id not in ADMIN_USER_IDS:
+        return
+    tag = cq.data.split(":", 1)[1]
+    assigned = ADMIN_TABLES.get(user.id, ())
+    if tag not in assigned:
+        await cq.answer("Нет доступа к этому столу", show_alert=True)
+        return
+    set_active_table(context.bot_data, user.id, tag)
+    logger.info("Активный стол (кнопка) -> %s, %s", tag, _admin(update))
+    try:
+        await cq.edit_message_reply_markup(
+            reply_markup=use_table_keyboard(assigned, tag)
+        )
+    except BadRequest:
+        pass
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=texts.use_set(tag))
 
 
 async def cmd_first(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -174,9 +204,10 @@ async def _broadcast(
     return sent, failed
 
 
-def build_handlers() -> list[CommandHandler]:
+def build_handlers() -> list[BaseHandler]:
     return [
         CommandHandler("use", cmd_use, filters=_ADMIN),
+        CallbackQueryHandler(on_use_button, pattern="^use:"),
         CommandHandler("first", cmd_first, filters=_ADMIN),
         CommandHandler("second", cmd_second, filters=_ADMIN),
         CommandHandler("third", cmd_third, filters=_ADMIN),

@@ -5,6 +5,7 @@ import logging
 from telegram.ext import AIORateLimiter, ApplicationBuilder, PicklePersistence
 
 import config
+from regabot.commands import setup_admin_menu
 from regabot.handlers.admin import build_handlers as admin_handlers
 from regabot.handlers.errors import on_error
 from regabot.handlers.registration import build_conversation as reg_conv
@@ -13,6 +14,10 @@ from regabot.handlers.sympathy import build_conversation as sympathy_conv
 from regabot.logging_setup import setup_logging
 
 logger = logging.getLogger(__name__)
+
+
+async def _post_init(application) -> None:
+    await setup_admin_menu(application.bot, config.ADMIN_USER_IDS)
 
 
 def build_application():
@@ -36,6 +41,7 @@ def build_application():
         .token(config.TELEGRAM_BOT_TOKEN)
         .persistence(persistence)
         .rate_limiter(AIORateLimiter())
+        .post_init(_post_init)
         .build()
     )
 

@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 
 from telegram import ReplyKeyboardRemove, Update
+from telegram.error import BadRequest
 from telegram.ext import (
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     ConversationHandler,
@@ -14,7 +16,7 @@ from telegram.ext import (
 from config import TABLE_TAGS
 from regabot import texts
 from regabot.constants import Stage
-from regabot.keyboards import contact_keyboard
+from regabot.keyboards import contact_keyboard, table_keyboard
 from regabot.logging_setup import describe_participant
 from regabot.models import Participant
 from regabot.state import (
@@ -54,24 +56,31 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # --- /reg_for_table: регистрация на текущую сессию ---
 async def _select_table(update: Update, context: ContextTypes.DEFAULT_TYPE, tag: str) -> int:
     user = update.effective_user
+    chat_id = update.effective_chat.id
     reg = context.user_data["reg"]
     if tag not in TABLE_TAGS:
         logger.warning("Неверный тег стола '%s' от %s", tag, _who(update))
-        await update.message.reply_text(texts.table_invalid(", ".join(TABLE_TAGS)))
+        await context.bot.send_message(
+            chat_id=chat_id, text=texts.table_invalid(", ".join(TABLE_TAGS))
+        )
         return TABLE
     table = get_table(context.bot_data, tag)
     if table.stage != Stage.FIRST:
         logger.info("Стол %s не на этапе FIRST для %s", tag, _who(update))
         open_tags = ", ".join(_open_tables(context.bot_data))
-        await update.message.reply_text(texts.table_closed(tag, open_tags))
+        await context.bot.send_message(
+            chat_id=chat_id, text=texts.table_closed(tag, open_tags)
+        )
         return TABLE
     if user is not None and find_badge_in_table(table, user.id) is not None:
         logger.info("Уже зарегистрирован за столом %s: %s", tag, _who(update))
-        await update.message.reply_text(texts.already_at_table(tag))
+        await context.bot.send_message(chat_id=chat_id, text=texts.already_at_table(tag))
         return ConversationHandler.END
     reg["table_tag"] = tag
     logger.debug("Тег стола=%s от %s", tag, _who(update))
-    await update.message.reply_text(texts.ASK_BADGE, reply_markup=ReplyKeyboardRemove())
+    await context.bot.send_message(
+        chat_id=chat_id, text=texts.ASK_BADGE, reply_markup=ReplyKeyboardRemove()
+    )
     return BADGE
 
 
@@ -96,7 +105,9 @@ async def reg_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         logger.info("Регистрация (есть профиль): %s", _who(update))
         if arg in TABLE_TAGS:
             return await _select_table(update, context, arg)
-        await update.message.reply_text(texts.ask_table(", ".join(open_tags)))
+        await update.message.reply_text(
+            texts.ask_table(", ".join(open_tags)), reply_markup=table_keyboard(open_tags)
+        )
         return TABLE
 
     if arg in TABLE_TAGS:
@@ -138,8 +149,13 @@ async def on_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     pending = reg.pop("pending_table", None)
     if pending in TABLE_TAGS:
         return await _select_table(update, context, pending)
-    open_tags = ", ".join(_open_tables(context.bot_data))
-    await update.message.reply_text(texts.ask_table(open_tags), reply_markup=ReplyKeyboardRemove())
+    open_tags = _open_tables(context.bot_data)
+    await update.message.reply_text(
+        texts.ask_table(", ".join(open_tags)), reply_markup=ReplyKeyboardRemove()
+    )
+    await update.message.reply_text(
+        texts.CHOOSE_TABLE_BTN, reply_markup=table_keyboard(open_tags)
+    )
     return TABLE
 
 
@@ -149,9 +165,23 @@ async def contact_fallback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return CONTACT
 
 
-async def on_table(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    tag = (update.message.text or "").strip().lower()
-    return await _select_table(update, context, tag)
+async def on_table_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    cq = update.callback_query
+    await cq.answer()
+    tag = cq.data.split(":", 1)[1]
+    try:
+        await cq.edit_message_reply_markup(reply_markup=None)
+    except BadRequest:
+        pass
+    result = await _select_table(update, context, tag)
+    if result == TABLE:
+        open_tags = _open_tables(context.bot_data)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=texts.ask_table(", ".join(open_tags)),
+            reply_markup=table_keyboard(open_tags),
+        )
+    return result
 
 
 async def on_badge(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -220,7 +250,7 @@ def build_conversation() -> ConversationHandler:
                 MessageHandler(filters.CONTACT, on_contact),
                 MessageHandler(filters.ALL, contact_fallback),
             ],
-            TABLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_table)],
+            TABLE: [CallbackQueryHandler(on_table_button, pattern="^tbl:")],
             BADGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_badge)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
