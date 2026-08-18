@@ -3,22 +3,34 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 
-from telegram import BotCommand, BotCommandScopeChat
+from telegram import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat
 from telegram.error import TelegramError
 
 logger = logging.getLogger(__name__)
 
 
+USER_COMMANDS: list[BotCommand] = [
+    BotCommand("start", "Заполнить анкету заново"),
+    BotCommand("browse", "Смотреть анкеты"),
+    BotCommand("cancel", "Отменить заполнение анкеты"),
+]
+
 ADMIN_COMMANDS: list[BotCommand] = [
     BotCommand("first", "Этап 1: открыть анкеты"),
-    BotCommand("second", "Подобрать и разослать метчи"),
-    BotCommand("dump", "Выгрузка анкет и пар"),
+    BotCommand("dump", "Выгрузка анкет, лайков и метчей"),
     BotCommand("reset", "Полный сброс"),
     BotCommand("help", "Справка администратора"),
 ]
 
 
-async def setup_admin_menu(bot, admin_ids: Iterable[int]) -> int:
+async def setup_commands(bot, admin_ids: Iterable[int]) -> None:
+    """Меню команд: для всех — пользовательское, для админов — администраторское."""
+    try:
+        await bot.set_my_commands(
+            USER_COMMANDS, scope=BotCommandScopeAllPrivateChats()
+        )
+    except TelegramError as exc:
+        logger.warning("Не удалось установить пользовательское меню: %r", exc)
     sent = 0
     for uid in admin_ids:
         try:
@@ -28,5 +40,4 @@ async def setup_admin_menu(bot, admin_ids: Iterable[int]) -> int:
             sent += 1
         except TelegramError as exc:
             logger.warning("Не удалось установить меню админа для uid=%s: %r", uid, exc)
-    logger.info("Меню администратора установлено для %d чатов", sent)
-    return sent
+    logger.info("Меню установлено: пользователи + администраторы (%d чатов)", sent)

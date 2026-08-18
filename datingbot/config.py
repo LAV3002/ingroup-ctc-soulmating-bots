@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -27,12 +26,9 @@ ADMIN_USER_IDS: frozenset[int] = _parse_ids(os.getenv("DATING_ADMIN_IDS", ""))
 
 PERSISTENCE_FILE: str = os.getenv("DATING_PERSISTENCE_FILE", "datingbot_data.pickle")
 
-# Подбор метчей
-MATCHES_PER_USER: int = 1
+# Возраст участников
 MIN_AGE: int = int(os.getenv("DATING_MIN_AGE", "18"))
 MAX_AGE: int = int(os.getenv("DATING_MAX_AGE", "99"))
-AGE_PROXIMITY_BONUS: float = float(os.getenv("DATING_AGE_BONUS", "0.5"))
-AGE_PENALTY_PER_YEAR: float = float(os.getenv("DATING_AGE_PENALTY", "0.1"))
 
 # Логирование
 LOG_LEVEL: str = os.getenv("DATING_LOG_LEVEL", os.getenv("LOG_LEVEL", "INFO"))
@@ -41,12 +37,6 @@ LOG_MAX_BYTES: int = int(os.getenv("DATING_LOG_MAX_BYTES", os.getenv("LOG_MAX_BY
 LOG_BACKUP_COUNT: int = int(
     os.getenv("DATING_LOG_BACKUP_COUNT", os.getenv("LOG_BACKUP_COUNT", "5"))
 )
-
-_ASSETS_DIR = Path(__file__).resolve().parent / "assets"
-
-
-def assets_dir() -> Path:
-    return _ASSETS_DIR
 
 
 def validate() -> None:

@@ -1,19 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from itertools import combinations
-
-from datingbot import config
 from datingbot.constants import GENDER_F, GENDER_M, LOOKING_SET
 from datingbot.models import Profile
-from datingbot.questions import weights
-
-
-@dataclass(frozen=True)
-class Match:
-    a_uid: int
-    b_uid: int
-    score: float
 
 
 def compatible(a: Profile, b: Profile) -> bool:
@@ -31,67 +19,21 @@ def compatible(a: Profile, b: Profile) -> bool:
     return b.gender in a_wants and a.gender in b_wants
 
 
-def similarity(a: Profile, b: Profile, w: dict[str, float] | None = None) -> float:
-    """Взвешенное число совпадающих ответов + бонус за близость возраста."""
-    if w is None:
-        w = weights()
-    score = 0.0
-    for qid, weight in w.items():
-        if a.answers.get(qid) is not None and a.answers.get(qid) == b.answers.get(qid):
-            score += weight
-    gap = abs(a.age - b.age)
-    bonus = config.AGE_PROXIMITY_BONUS - gap * config.AGE_PENALTY_PER_YEAR
-    if bonus > 0:
-        score += bonus
-    return score
+def candidates_for(
+    profile: Profile,
+    profiles: dict[int, Profile],
+    viewed: set[int],
+) -> list[Profile]:
+    """Анкеты для свайпа: подтверждённые, совместимые, ещё не просмотренные.
 
-
-def compute_candidates(
-    profiles: dict[int, Profile], w: dict[str, float] | None = None
-) -> list[Match]:
-    if w is None:
-        w = weights()
-    candidates: list[Match] = []
-    for a, b in combinations(profiles.values(), 2):
-        if not compatible(a, b):
-            continue
-        score = similarity(a, b, w)
-        candidates.append(Match(a_uid=a.user_id, b_uid=b.user_id, score=score))
-    return candidates
-
-
-def _age_gap(profiles: dict[int, Profile], m: Match) -> int:
-    return abs(profiles[m.a_uid].age - profiles[m.b_uid].age)
-
-
-def assign_pairs(
-    profiles: dict[int, Profile], w: dict[str, float] | None = None
-) -> list[Match]:
-    """Жадное разбиение на непересекающиеся пары: каждому ≤ 1 метч.
-
-    Порядок выбора: выше score, затем меньше разница возрастов,
-    затем меньший user_id как тай-брейк.
+    Неподтверждённые админом анкеты другим не показываются.
+    Порядок детерминированный (по user_id), чтобы не зависеть от порядка dict.
     """
-    candidates = compute_candidates(profiles, w)
-    ordered = sorted(
-        candidates,
-        key=lambda m: (-m.score, _age_gap(profiles, m), m.a_uid, m.b_uid),
-    )
-    used: set[int] = set()
-    pairs: list[Match] = []
-    for m in ordered:
-        if m.a_uid in used or m.b_uid in used:
-            continue
-        used.add(m.a_uid)
-        used.add(m.b_uid)
-        pairs.append(m)
-    return pairs
-
-
-def partner_of(pairs: list[Match], user_id: int) -> int | None:
-    for m in pairs:
-        if m.a_uid == user_id:
-            return m.b_uid
-        if m.b_uid == user_id:
-            return m.a_uid
-    return None
+    return [
+        p
+        for uid, p in sorted(profiles.items())
+        if uid != profile.user_id
+        and uid not in viewed
+        and p.verified
+        and compatible(profile, p)
+    ]

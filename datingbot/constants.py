@@ -6,7 +6,13 @@ from enum import StrEnum
 class Stage(StrEnum):
     NONE = "none"
     FIRST = "first"
-    SECOND = "second"
+
+    @classmethod
+    def _missing_(cls, value: object) -> Stage | None:
+        # Совместимость со старыми pickle-файлами, где существовал Stage.SECOND.
+        if value == "second":
+            return cls.NONE
+        return None
 
 
 # Пол

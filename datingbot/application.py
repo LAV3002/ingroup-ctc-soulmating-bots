@@ -5,8 +5,9 @@ import logging
 from telegram.ext import AIORateLimiter, ApplicationBuilder, PicklePersistence
 
 from datingbot import config as dating_config
-from datingbot.commands import setup_admin_menu
+from datingbot.commands import setup_commands
 from datingbot.handlers.admin import build_handlers as admin_handlers
+from datingbot.handlers.browse import build_conversation as browse_conv
 from datingbot.handlers.errors import on_error
 from datingbot.handlers.registration import build_conversation as reg_conv
 from datingbot.logging_setup import setup_logging
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _post_init(application) -> None:
-    await setup_admin_menu(application.bot, dating_config.ADMIN_USER_IDS)
+    await setup_commands(application.bot, dating_config.ADMIN_USER_IDS)
 
 
 def build_application():
@@ -40,6 +41,7 @@ def build_application():
     )
 
     application.add_handler(reg_conv())
+    application.add_handler(browse_conv())
     for handler in admin_handlers():
         application.add_handler(handler)
     application.add_error_handler(on_error)
