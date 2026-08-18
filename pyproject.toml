@@ -14,6 +14,13 @@ dev = [
     "ruff>=0.6",
 ]
 
+[tool.setuptools.package-data]
+datingbot = ["assets/*.png"]
+
+[tool.setuptools.packages.find]
+include = ["datingbot*", "regabot*"]
+namespaces = false
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

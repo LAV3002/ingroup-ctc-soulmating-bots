@@ -4,8 +4,8 @@ from telegram import BotCommandScopeAllPrivateChats, BotCommandScopeChat
 
 from datingbot.commands import ADMIN_COMMANDS, USER_COMMANDS, setup_commands
 
-ADMIN_EXPECTED = ["first", "dump", "reset", "help"]
-USER_EXPECTED = ["start", "browse", "cancel"]
+USER_EXPECTED = ["start", "profile", "browse", "cancel"]
+ADMIN_EXPECTED = USER_EXPECTED + ["first", "dump", "reset", "help"]
 
 
 def test_admin_commands_list():

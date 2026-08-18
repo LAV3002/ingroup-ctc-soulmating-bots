@@ -5,7 +5,9 @@ from datingbot.constants import GENDER_F, GENDER_M, LOOKING_F, LOOKING_M
 from datingbot.keyboards import (
     browse_keyboard,
     match_keyboard,
+    profile_keyboard,
     refresh_keyboard,
+    registration_nav_keyboard,
     swipe_keyboard,
     verification_keyboard,
 )
@@ -21,15 +23,15 @@ def _callbacks(markup):
 
 
 def test_swipe_keyboard_callbacks():
-    markup = swipe_keyboard()
-    assert _callbacks(markup) == ["swipe:pass", "swipe:like", "swipe:stop"]
+    markup = swipe_keyboard(42)
+    assert _callbacks(markup) == ["swipe:pass:42", "swipe:like:42", "swipe:stop"]
 
 
 def test_swipe_keyboard_two_rows_labeled():
-    markup = swipe_keyboard()
+    markup = swipe_keyboard(42)
     rows = [[btn.text for btn in row] for row in markup.inline_keyboard]
-    assert rows[0] == ["💔 Мимо", "❤️ Нравится"]
-    assert rows[1] == ["⏹ Стоп"]
+    assert rows[0] == ["×  ДАЛЬШЕ", "♥  НРАВИТСЯ"]
+    assert rows[1] == ["ПАУЗА"]
 
 
 def test_browse_keyboard_callback():
@@ -38,6 +40,19 @@ def test_browse_keyboard_callback():
 
 def test_refresh_keyboard_callback():
     assert _callbacks(refresh_keyboard()) == ["browse:start"]
+
+
+def test_profile_keyboard_adapts_to_verification():
+    assert _callbacks(profile_keyboard(False)) == ["profile:edit"]
+    assert _callbacks(profile_keyboard(True)) == ["browse:start", "profile:edit"]
+
+
+def test_registration_navigation():
+    assert _callbacks(registration_nav_keyboard()) == ["reg:cancel"]
+    assert _callbacks(registration_nav_keyboard("gender")) == [
+        "reg:back:gender",
+        "reg:cancel",
+    ]
 
 
 def test_match_keyboard_with_username():
@@ -99,7 +114,7 @@ def test_profile_saved_no_phone():
 
 def test_profile_saved_mentions_verification():
     p = _p(1, GENDER_M, LOOKING_F, None)
-    assert "на проверку" in texts.profile_saved(p)
+    assert "провер" in texts.profile_saved(p).lower()
 
 
 def test_admin_verification_card_has_contact_and_uid():
@@ -165,9 +180,9 @@ def test_admin_cards_escape_user_input():
 
 def test_swipe_card_header_has_name_and_age():
     card = texts.swipe_card(_p(2, GENDER_F, LOOKING_M, "alice"))
-    assert "<b>u2, 25</b>" in card
-    assert "Хобби" in card
-    assert "Мечта" in card
+    assert "<b>U2 · 25</b>" in card
+    assert "ХОББИ" in card
+    assert "МЕЧТА" in card
 
 
 def test_registration_prompts_have_step_counters():
@@ -178,3 +193,16 @@ def test_registration_prompts_have_step_counters():
     assert "Шаг 5/7" in texts.ASK_PHOTO
     assert "Шаг 6/7" in texts.ASK_HOBBIES
     assert "Шаг 7/7" in texts.ASK_DREAM
+
+
+def test_maximum_profile_still_fits_photo_caption():
+    p = _p(2, GENDER_F, LOOKING_M, "alice")
+    p.name = "N" * 40
+    p.hobbies = "H" * 240
+    p.dream = "D" * 240
+    assert len(texts.swipe_card(p)) < 1024
+    assert len(texts.profile_saved(p)) < 1024
+
+
+def test_profile_overview_shows_status():
+    assert "НА ПРОВЕРКЕ" in texts.profile_overview(_p(1, GENDER_M, LOOKING_F, None))

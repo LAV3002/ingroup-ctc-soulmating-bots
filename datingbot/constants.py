@@ -26,6 +26,10 @@ LOOKING_F = "f"
 LOOKING_MF = "mf"
 LOOKING_FOR: tuple[str, ...] = (LOOKING_M, LOOKING_F, LOOKING_MF)
 
+# Keep profile cards below Telegram's 1024-character photo-caption limit.
+NAME_MAX_LENGTH = 40
+PROFILE_TEXT_MAX_LENGTH = 240
+
 # Разрешённые комбинации «пол A интересен B»: B.gender должен быть в множестве.
 # Т.е. A ищет {набор полов}; совместимость требует взаимности.
 LOOKING_SET: dict[str, frozenset[str]] = {
